@@ -1,4 +1,4 @@
-const CACHE_NAME = "DX_zaznamnik-v2.0";
+const CACHE_NAME = "DxZaznamnik-v2";
 
 const FILES_TO_CACHE = [
   "./index.html",
@@ -16,25 +16,19 @@ const FILES_TO_CACHE = [
   "./icon-512.png"
 ];
 
-// Instalace SW + cache souborů
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(FILES_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(FILES_TO_CACHE))
   );
   self.skipWaiting();
 });
 
-// Aktivace SW + smazání starých cache
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
+          if (key !== CACHE_NAME) return caches.delete(key);
         })
       )
     )
@@ -42,13 +36,9 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch – obsluha požadavků
 self.addEventListener("fetch", (event) => {
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
+    caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
 });
-
 
