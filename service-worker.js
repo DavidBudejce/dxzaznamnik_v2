@@ -1,7 +1,6 @@
 const CACHE_NAME = "DX_zaznamnik-v2.0";
 
 const FILES_TO_CACHE = [
-  "./",
   "./index.html",
   "./nove_spojeni.html",
   "./mista_seznam.html",
@@ -51,4 +50,5 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
 
