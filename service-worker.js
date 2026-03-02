@@ -1,4 +1,4 @@
-const CACHE_NAME = "DxZaznamnik-v1";
+const CACHE_NAME = "DxZaznamnik-v1x";
 
 const FILES_TO_CACHE = [
   "./index.html",
@@ -32,4 +32,5 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
 });
+
 
