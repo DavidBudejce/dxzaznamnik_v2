@@ -1,16 +1,7 @@
-const CACHE_NAME = "DxZaznamnik-v2";
+const CACHE_NAME = "DxZaznamnik-v1";
 
 const FILES_TO_CACHE = [
   "./index.html",
-  "./nove_spojeni.html",
-  "./mista_seznam.html",
-  "./nove_misto.html",
-  "./seznam_spojeni.html",
-  "./seznam.js",
-  "./lok_mapa.html",
-  "./qth.html",
-  "./style.css",
-  "./app.js",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png"

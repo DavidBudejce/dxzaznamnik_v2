@@ -1,80 +1,458 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
+<meta charset="UTF-8">
+<meta name="author" content="all: David Svoboda ve spolupráci s AI">
+<meta name="Description" content="Lokátorová mapa a záznamník rádiového spojení">
+    <meta name="authorMail" content="dsv@seznam.cz">
+    <meta name="language" content="czech">
+    
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a73e8">
 
-    <title>DX záznamník</title>
-    <link rel="stylesheet" href="main.css">
+
+<title>Hledač lokátorů a záznamník rádiového spojení</title>
+<style>
+
+/* FIXNÍ PANEL S MÝM QTH */
+#stickyQTH {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #333;
+    color: white;
+    padding: 10px 14px;
+    font-size: 1.6em;
+    font-weight: bold;
+    z-index: 99999;
+    text-align: center;
+    border-bottom: 3px solid #555;
+}
+
+/* Barvy podle přesnosti */
+#stickyQTH.good {
+    background: #006600;
+}
+
+#stickyQTH.bad {
+    background: #990000;
+}
+
+/* Aby panel nepřekrýval obsah */
+body {
+    padding-top: 70px;
+}
+
+
+body{font-family:Arial,sans-serif;margin:25px;}
+#map{height:400px;margin-bottom:25px;}
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+td,th{border:1px solid #ccc;padding:6px;}
+th{background:#eee;}
+.highlight{background-color:#ffeeba;font-weight:bold;}
+#locator{display:inline-block;padding:8px 14px;font-size:5.0em;font-weight:bold;background:#ffe9e9;border:2px solid #d40000;border-radius:8px;color:#b00000;}
+#logInput{font-size:2.0em;padding:10px 14px;width:400px;}
+button{font-size:1.1em;padding:6px 10px;}
+
+#locator.good {
+    border-color: #00a000;
+    background: #e8ffe8;
+}
+
+#locator.bad {
+    border-color: #d40000;
+    background: #ffe9e9;
+}
+
+#stickyQTH {
+    position: sticky;
+    top: 0;
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    font-size: 1.4em;
+    font-weight: bold;
+    z-index: 9999;
+    border-bottom: 3px solid #555;
+}
+
+#stickyQTH.good {
+    background: #006600;
+}
+
+#stickyQTH.bad {
+    background: #990000;
+}
+
+
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
-<div class="container">
-    <header class="header">
-        <img src="icon-512.png" alt="DX" class="logo"><p>
-        <h1>DX záznamník</h1>
-    </header>
-
-    <button id="installBtn" style="
-      display:none;
-      padding: 14px 20px;
-      background:#1976d2;
-      color:white;
-      border:none;
-      border-radius:10px;
-      font-size:20px;
-      font-weight:bold;
-      margin:15px 0;
-      width:100%;
-    ">
-    📲 Nainstalovat aplikaci
-    </button>
-
-
-    <nav class="menu">
-    <!-- Toto je komentář -->
-        <a href="qth.html" class="menu-btn">Vyhledání QTH</a>
-        <a href="nove_spojeni.html" class="menu-btn">Nové spojení</a>
-        <a href="seznam_spojeni.html" class="menu-btn">Seznam spojení</a>  
-        <a href="nove_misto.html" class="menu-btn">Nové místo</a>
-        <a href="mista_seznam.html" class="menu-btn">Seznam míst</a>
-        <a href="lok_mapa.html" class="menu-btn">Lokátorová mapa</a>
-        <a href="https://www.dxinfocentre.com/tropo_eur.html" class="menu-btn">Tropo mapa</a>
-        <a href="https://meteo.rlp.cz/test/wxpic/czrad/animace.gif" class="menu-btn">Meteo radar</a>
-       <!-- <a href="oaplikaci.html" class="menu-btn">O aplikaci</a> -->
-    </nav>
+<div id="stickyQTH">
+  <span id="stickyQTHLabel">QTH: –</span>
 </div>
 
+<h2>Hledač lokátorů a záznamník rádiového spojení</h2>
+
+<div id="map"></div>
+
+<h2><p>Souřadnice: <span id="coords">–</span> -///- Přesnost: <span id="acc">–</span></p></h2>
+
+<h3><p>Lokátor: <span id="locator">–</span></p></h3>
+
+<button onclick="confirmQTH()">Potvrdit QTH</button>
+
+<button onclick="resetQTH()">Reset QTH</button>
+
+<p id="confirmed"></p>
+
+<!--  <hr> -->
+
+<div id="qthNotSet">
+  <p><b>Nejprve potvrď své QTH.</b></p>
+</div>
+
+<div id="qthSet" style="display:none;">
+  <h2><p><b>Můj QTH:</b> <span id="myQTHLabel"></span></p></h2>
+</div>
+
+<hr>
+
+<div id="logSection" style="display:none;">
+  <h2>Log spojení</h2>
+  <p>
+    <input id="logInput" type="text" placeholder="Lokátor + jméno / poznámka">
+    <button onclick="addQSO()">Přidat</button>
+  </p>
+  <p>
+    <label><h3>Filtr dne:</h3></label>
+    <select id="dayFilter" onchange="renderLog()">
+      <option value="ALL">Vše</option>
+      <option value="TODAY">Dnes</option>
+    </select>
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Čas</th><th>Jméno</th><th>DX lokátor</th><th>Můj lokátor</th>
+        <th>Vzdálenost (km)</th><th>Azimut (°)</th><th>Poznámka</th>
+      </tr>
+    </thead>
+    <tbody id="logBody"></tbody>
+  </table>
+  <p>
+    <button onclick="exportHuman()">Export TXT</button>
+    <button onclick="exportCSV()">Export CSV</button>
+    <button onclick="clearLog()">Vymazat log</button>
+  </p>
+</div>
 
 <script>
-let deferredPrompt = null;
-const installBtn = document.getElementById("installBtn");
+function latLonToLocator(lat,lon){
+  lon+=180;lat+=90;let A="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let fL=Math.floor(lon/20),fB=Math.floor(lat/10);
+  let sL=Math.floor((lon%20)/2),sB=Math.floor((lat%10)/1);
+  let subL=Math.floor(((lon%2)*60)/5),subB=Math.floor(((lat%1)*60)/2.5);
+  return A[fL]+A[fB]+sL+""+sB+A[subL]+A[subB];
+}
+function locatorToBounds(locator){
+  locator=locator.toUpperCase();let A="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let lon=A.indexOf(locator[0])*20-180;
+  let lat=A.indexOf(locator[1])*10-90;
+  lon+=parseInt(locator[2])*2;lat+=parseInt(locator[3])*1;
+  lon+=(A.indexOf(locator[4])*5)/60;
+  lat+=(A.indexOf(locator[5])*2.5)/60;
+  let lon2=lon+5/60,lat2=lat+2.5/60;
+  return [[lat,lon],[lat2,lon2]];
+}
+function locatorToCenterLatLon(locator){
+  let b=locatorToBounds(locator);
+  return{lat:(b[0][0]+b[1][0])/2,lon:(b[0][1]+b[1][1])/2};
+}
+function toRad(d){return d*Math.PI/180;}
+function toDeg(r){return r*180/Math.PI;}
+function distanceKm(lat1,lon1,lat2,lon2){
+  let R=6371,dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+  let a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function bearingDeg(lat1,lon1,lat2,lon2){
+  let f1=toRad(lat1),f2=toRad(lat2),l1=toRad(lon1),l2=toRad(lon2);
+  let y=Math.sin(l2-l1)*Math.cos(f2);
+  let x=Math.cos(f1)*Math.sin(f2)-Math.sin(f1)*Math.cos(f2)*Math.cos(l2-l1);
+  return(toDeg(Math.atan2(y,x))+360)%360;
+}
 
-// Zachytíme událost, která říká, že PWA lze nainstalovat
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();          // zabrání automatickému zobrazení
-  deferredPrompt = e;          // uložíme si událost
-  installBtn.style.display = "block";   // zobrazíme tlačítko
+let map=L.map('map').setView([49,14],13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+let marker=null,accuracyCircle=null,locatorRect=null;
+
+let myQTH=null,myQTHTime=null,logEntries=[];
+
+function loadState(){
+  myQTH=localStorage.getItem("myQTH")||null;
+  myQTHTime=localStorage.getItem("myQTHtime")||null;
+  let logJson=localStorage.getItem("logEntries");
+  if(logJson){try{logEntries=JSON.parse(logJson);}catch(e){logEntries=[];}}
+  updateQTHBar();
+  renderLog();
+  if(myQTH)document.getElementById("logSection").style.display="block";
+}
+function saveLog(){localStorage.setItem("logEntries",JSON.stringify(logEntries));}
+
+navigator.geolocation.watchPosition(pos => {
+
+    let lat = pos.coords.latitude;
+    let lon = pos.coords.longitude;
+    let acc = pos.coords.accuracy;
+
+    document.getElementById("coords").textContent =
+        lat.toFixed(5) + ", " + lon.toFixed(5);
+    document.getElementById("acc").textContent =
+        acc.toFixed(1) + " m";
+
+    let loc = latLonToLocator(lat, lon);
+    
+    
+    
+    let sticky = document.getElementById("stickyQTH");
+
+if (!myQTH) {
+    if (acc <= 200) {
+        sticky.classList.remove("bad");
+        sticky.classList.add("good");
+        document.getElementById("stickyQTHLabel").textContent = "QTH: " + loc;
+    } else {
+        sticky.classList.remove("good");
+        sticky.classList.add("bad");
+        document.getElementById("stickyQTHLabel").textContent = "QTH: " + loc + " ?";
+    }
+}
+
+    
+    
+
+    // ⭐ Pokud QTH už je potvrzeno → lokátor v UI se NEMĚNÍ
+    if (myQTH) {
+        updateMap(lat, lon, acc);
+        return;
+    }
+
+    // ⭐ Lokátor se zobrazuje VŽDY, ale kvalita se označí
+    let locatorEl = document.getElementById("locator");
+
+    if (acc <= 200) {
+        // dobrá přesnost
+        locatorEl.textContent = loc;
+        locatorEl.classList.remove("bad");
+        locatorEl.classList.add("good");
+    } else {
+        // špatná přesnost → lokátor s otazníkem
+        locatorEl.textContent = loc + " ?";
+        locatorEl.classList.remove("good");
+        locatorEl.classList.add("bad");
+    }
+
+    updateMap(lat, lon, acc);
+
+
 });
 
-// Po kliknutí na tlačítko spustíme instalaci
-installBtn.addEventListener("click", async () => {
-  if (!deferredPrompt) return;
 
-  deferredPrompt.prompt();     // zobrazí systémové okno instalace
+function updateMap(lat, lon, acc) {
 
-  const result = await deferredPrompt.userChoice;
+    if (!marker) {
+        marker = L.circleMarker([lat, lon], {
+            radius: 6,
+            color: "blue",
+            fillColor: "blue",
+            fillOpacity: 1
+        }).addTo(map);
+    } else {
+        marker.setLatLng([lat, lon]);
+    }
 
-  // Po instalaci tlačítko schováme
-  if (result.outcome === "accepted") {
-    installBtn.style.display = "none";
+    if (!accuracyCircle) {
+        accuracyCircle = L.circle([lat, lon], {
+            radius: acc,
+            color: "blue",
+            fillOpacity: 0.1
+        }).addTo(map);
+    } else {
+        accuracyCircle.setLatLng([lat, lon]);
+        accuracyCircle.setRadius(acc);
+    }
+
+    let b = locatorToBounds(latLonToLocator(lat, lon));
+    if (locatorRect) map.removeLayer(locatorRect);
+    locatorRect = L.rectangle(b, { color: "red", weight: 2 }).addTo(map);
+
+    map.setView([lat, lon]);
+}
+
+
+
+
+function confirmQTH(){
+
+    document.getElementById("stickyQTHLabel").textContent = "QTH: " + myQTH;
+    document.getElementById("stickyQTH").classList.remove("bad");
+    document.getElementById("stickyQTH").classList.add("good");
+
+
+  let loc=document.getElementById("locator").textContent;
+  if(!loc||loc==="–")return;
+  myQTH=loc.toUpperCase();
+  myQTHTime=new Date().toLocaleTimeString();
+  localStorage.setItem("myQTH",myQTH);
+  localStorage.setItem("myQTHtime",myQTHTime);
+  document.getElementById("locator").textContent=myQTH;
+  // document.getElementById("confirmed").textContent="✔ QTH potvrzeno: "+myQTH;
+
+
+  
+  updateQTHBar();
+  document.getElementById("logSection").style.display="block";
+  setTimeout(()=>{document.getElementById("logSection").scrollIntoView({behavior:"smooth"});},200);
+}
+function resetQTH(){
+  myQTH=null;myQTHTime=null;
+  localStorage.removeItem("myQTH");localStorage.removeItem("myQTHtime");
+  document.getElementById("confirmed").textContent="";
+  updateQTHBar();
+  document.getElementById("logSection").style.display="none";
+}
+function updateQTHBar(){
+  if(myQTH){
+    document.getElementById("qthNotSet").style.display="none";
+    document.getElementById("qthSet").style.display="block";
+    document.getElementById("myQTHLabel").textContent=myQTH+(myQTHTime?" (potvrzeno v "+myQTHTime+")":"");
+  }else{
+    document.getElementById("qthNotSet").style.display="block";
+    document.getElementById("qthSet").style.display="none";
   }
+}
 
-  deferredPrompt = null;
-});
+function parseQSOInput(line){
+  line=line.trim();if(!line)return null;
+  let now=new Date(),hh=String(now.getHours()).padStart(2,"0"),mm=String(now.getMinutes()).padStart(2,"0");
+  let time=hh+":"+mm;
+  let locator=line.substring(0,6).toUpperCase();
+  if(!/^[A-R]{2}\d{2}[A-X]{2}$/.test(locator))return null;
+  let rest=line.substring(6).trim(),name=rest,note="";
+  let slash=rest.indexOf("/");
+  if(slash>=0){name=rest.substring(0,slash).trim();note=rest.substring(slash+1).trim();}
+  if(!name)name="(bez jména)";
+  return{time,name,dxLocator:locator,note};
+}
+
+function addQSO(){
+  if(!myQTH){alert("Nejprve potvrď své QTH.");return;}
+  let input=document.getElementById("logInput");
+  let parsed=parseQSOInput(input.value);
+  if(!parsed){alert("Nepodařilo se rozpoznat lokátor.");return;}
+  let date=new Date().toISOString().split("T")[0];
+  let myC=locatorToCenterLatLon(myQTH),dxC=locatorToCenterLatLon(parsed.dxLocator);
+  let dist=distanceKm(myC.lat,myC.lon,dxC.lat,dxC.lon);
+  let az=bearingDeg(myC.lat,myC.lon,dxC.lat,dxC.lon);
+  let entry={date,time:parsed.time,name:parsed.name,dxLocator:parsed.dxLocator,myLocator:myQTH,distance:dist,azimuth:az,note:parsed.note};
+  logEntries.push(entry);saveLog();renderLog();input.value="";
+}
+
+function renderLog(){
+  let filterSelect=document.getElementById("dayFilter");
+  if(filterSelect){
+    let current=filterSelect.value;
+    filterSelect.innerHTML="";
+    filterSelect.appendChild(new Option("Vše","ALL"));
+    filterSelect.appendChild(new Option("Dnes","TODAY"));
+    let days=[...new Set(logEntries.map(e=>e.date))].sort();
+    for(let d of days)filterSelect.appendChild(new Option(d,d));
+    if([...filterSelect.options].some(o=>o.value===current))filterSelect.value=current;
+  }
+  let filter=document.getElementById("dayFilter")?.value||"ALL";
+  let today=new Date().toISOString().split("T")[0];
+  let filtered=logEntries.filter(e=>{
+    if(filter==="TODAY")return e.date===today;
+    if(filter==="ALL")return true;
+    return e.date===filter;
+  });
+  filtered.sort((a,b)=>(a.date+" "+a.time).localeCompare(b.date+" "+b.time));
+  let maxDistance=0;
+  for(let e of filtered){if(e.distance!=null&&e.distance>maxDistance)maxDistance=e.distance;}
+  let tbody=document.getElementById("logBody");tbody.innerHTML="";
+  for(let e of filtered){
+    let tr=document.createElement("tr");
+    if(e.distance===maxDistance&&maxDistance>0)tr.classList.add("highlight");
+    function td(t){let c=document.createElement("td");c.textContent=t;tr.appendChild(c);}
+    td(e.time);td(e.name);td(e.dxLocator);td(e.myLocator);
+    td(e.distance!=null?e.distance.toFixed(1):"");
+    td(e.azimuth!=null?e.azimuth.toFixed(0):"");
+    td(e.note);
+    tbody.appendChild(tr);
+  }
+}
+
+function exportHuman(){
+  if(logEntries.length===0){alert("Žádná spojení.");return;}
+  let byDay={};
+  for(let e of logEntries){if(!byDay[e.date])byDay[e.date]=[];byDay[e.date].push(e);}
+  let lines=[],totalDistance=0;
+  for(let day of Object.keys(byDay).sort()){
+    let arr=byDay[day];
+    let daySum=arr.reduce((a,e)=>a+(e.distance||0),0);
+    totalDistance+=daySum;
+    lines.push(`Dne ${day} jsem udělal spojení:`);
+    lines.push(`Součet vzdáleností: ${daySum.toFixed(1)} km`);
+    lines.push("");
+    for(let e of arr){
+      let row=`${e.time} – ${e.name} – ${e.dxLocator} – moje QTH: ${e.myLocator}`;
+      if(e.distance!=null)row+=` – ${e.distance.toFixed(1)} km`;
+      if(e.azimuth!=null)row+=` – ${e.azimuth.toFixed(0)}°`;
+      if(e.note)row+=` – ${e.note}`;
+      lines.push("  • "+row);
+    }
+    lines.push("");
+  }
+  lines.push("============================================================");
+  lines.push(`Celkový součet vzdáleností: ${totalDistance.toFixed(1)} km`);
+  lines.push("============================================================");
+  let bom="\uFEFF",blob=new Blob([bom+lines.join("\n")],{type:"text/plain;charset=utf-8"});
+  let url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="Zaznamy_spojeni.txt";document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
+function exportCSV(){
+  if(logEntries.length===0){alert("Žádná spojení.");return;}
+  let lines=[];
+  for(let e of logEntries){
+    let base=`${e.date} ${e.time} ${e.name} ${e.dxLocator}`;
+    if(e.note)base+=`; ${e.note}`;
+    lines.push(base);
+  }
+  let bom="\uFEFF",blob=new Blob([bom+lines.join("\n")],{type:"text/plain;charset=utf-8"});
+  let url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="logbook.csv";document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
+function clearLog(){
+  if(!confirm("Opravdu vymazat celý log?"))return;
+  logEntries=[];saveLog();renderLog();
+}
+
+loadState();
+
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
+
 </script>
 
 
