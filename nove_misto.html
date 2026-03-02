@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>DX Záznamník – Moje místa</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+  }
+
+  #map {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  .backBtn {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10000;
+  padding: 14px 20px;
+  background: #1976d2;
+  color: white;
+  text-decoration: none;
+  border-radius: 20px;
+  font-size: 25px;
+  font-weight: bold;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+}
+
+
+  .backBtn:hover {
+    background: #0d47a1;
+  }
+
+  #addPanel {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    width: 260px;
+    background: white;
+    padding: 12px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 9999;
+  }
+
+  #addPanel h3 {
+    margin-top: 0;
+    margin-bottom: 8px;
+  }
+
+  #addPanel label {
+    font-size: 14px;
+  }
+
+  #addPanel input,
+  #addPanel textarea,
+  #addPanel button {
+    width: 100%;
+    margin-top: 6px;
+    padding: 8px;
+    font-size: 15px;
+    box-sizing: border-box;
+  }
+
+  #addPanel textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
+
+  #addPanel button {
+    margin-top: 10px;
+    background: #1976d2;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  #addPanel button:hover {
+    background: #0d47a1;
+  }
+
+  @media (max-width: 480px) {
+    .backBtn {
+      font-size: 15px;
+      padding: 6px 10px;
+    }
+
+    #addPanel {
+      width: calc(100% - 30px);
+      right: 15px;
+      left: 15px;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+<a href="index.html" class="backBtn">⟵ Zpět na úvod</a>
+
+<div id="map"></div>
+
+<div id="addPanel">
+  <h3>Přidat místo</h3>
+
+  <label for="placeName">Název místa:</label>
+  <input id="placeName" type="text">
+
+  <label for="placeAlt">Nadmořská výška (m):</label>
+  <input id="placeAlt" type="number">
+
+  <label for="placeNote">Poznámka:</label>
+  <textarea id="placeNote"></textarea>
+
+  <button onclick="addPlace()">Uložit místo</button>
+</div>
+
+<script>
+let places = [];
+let map;
+let myMarker = null;
+
+/* Načtení uložených míst */
+function loadPlaces() {
+  let data = localStorage.getItem("myPlaces");
+  if (data) places = JSON.parse(data);
+}
+
+/* Uložení */
+function savePlaces() {
+  localStorage.setItem("myPlaces", JSON.stringify(places));
+}
+
+/* Ikony */
+let blueIcon = new L.Icon({
+  iconUrl: "https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png",
+  iconSize: [32, 32],
+  iconAnchor: [16, 32]
+});
+
+let redIcon = new L.Icon({
+  iconUrl: "https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png",
+  iconSize: [32, 32],
+  iconAnchor: [16, 32]
+});
+
+/* Inicializace mapy */
+function initMap() {
+  map = L.map('map').setView([49.0, 15.0], 8);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18
+  }).addTo(map);
+
+  renderPlaces();
+  locateMe();
+}
+
+/* Zobrazení uložených míst */
+function renderPlaces() {
+  places.forEach(p => {
+    L.marker([p.lat, p.lon], { icon: blueIcon })
+      .addTo(map)
+      .bindPopup(
+        `<b>${p.name}</b><br>
+         ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}<br>
+         Výška: ${p.alt || "?"} m<br>
+         ${p.note ? p.note + "<br>" : ""}
+         <i>Přidáno: ${p.date}</i>`
+      );
+  });
+}
+
+/* Získání aktuální polohy */
+function locateMe() {
+  if (!navigator.geolocation) {
+    alert("Geolokace není podporována.");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(pos => {
+    let lat = pos.coords.latitude;
+    let lon = pos.coords.longitude;
+
+    if (myMarker) map.removeLayer(myMarker);
+
+    myMarker = L.marker([lat, lon], { icon: redIcon })
+      .addTo(map)
+      .bindPopup("Moje aktuální poloha")
+      .openPopup();
+
+    map.setView([lat, lon], 14);
+    document.getElementById("placeName").focus();
+  }, err => {
+    console.warn(err);
+  });
+}
+
+/* Přidání nového místa */
+function addPlace() {
+  if (!myMarker) {
+    alert("Nejdřív musím zjistit tvoji polohu.");
+    return;
+  }
+
+  let name = document.getElementById("placeName").value.trim();
+  let alt = document.getElementById("placeAlt").value.trim();
+  let note = document.getElementById("placeNote").value.trim();
+
+  if (!name) {
+    alert("Zadej název místa.");
+    return;
+  }
+
+  let lat = myMarker.getLatLng().lat;
+  let lon = myMarker.getLatLng().lng;
+  let date = new Date().toISOString().split("T")[0];
+
+  places.push({
+    date,
+    name,
+    lat,
+    lon,
+    alt,
+    note
+  });
+
+  savePlaces();
+
+  document.getElementById("placeName").value = "";
+  document.getElementById("placeAlt").value = "";
+  document.getElementById("placeNote").value = "";
+
+  // smažeme staré markery míst a znovu je vykreslíme
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer !== myMarker) {
+      map.removeLayer(layer);
+    }
+  });
+
+  renderPlaces();
+}
+
+loadPlaces();
+initMap();
+</script>
+
+</body>
+</html>
+

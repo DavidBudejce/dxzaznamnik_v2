@@ -1,0 +1,27 @@
+
+
+ukládá do 
+
+logEntries
+
+
+(4) ['myQTH', 'logEntries', 'myQTHtime', 'myCoords']
+
+
+localStorage.setItem("dxlog", JSON.stringify([
+  {
+    date: "2026-03-02",
+    time: "10:55",
+    name: "Test",
+    dxLocator: "JN79XX",
+    myLocator: "JN79XX",
+    distance: 123,
+    azimuth: 250,
+    note: "Test"
+  }
+]));
+
+
+Místa 
+myPlaces
+

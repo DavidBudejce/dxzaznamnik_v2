@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="author" content="all: David Svoboda ve spolupráci s AI">
+<meta name="Description" content="Lokátorová mapa radioamatérská mapa k vyhledávání lokátorů">
+    <meta name="authorMail" content="dsv@seznam.cz">
+    <meta name="language" content="czech">
+    <meta name="country" content="cz">
+<title>Můj lokátor – kompletní verze s URL exportem</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+  body { margin: 0; padding: 0; font-family: sans-serif; }
+
+  #locator-panel {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.9);
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 9vw;
+    font-weight: bold;
+    color: #000;
+    text-shadow: 0 0 6px #fff;
+    z-index: 9999;
+    pointer-events: none;
+  }
+
+  #info-panel {
+    position: fixed;
+    top: calc(10px + 9vw + 40px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.9);
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 22px;
+    color: #000;
+    z-index: 9999;
+    text-align: center;
+    min-width: 240px;
+  }
+
+  #search-panel {
+    position: fixed;
+    top: calc(10px + 9vw + 100px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.95);
+    padding: 10px;
+    border-radius: 10px;
+    z-index: 9999;
+    display: flex;
+    gap: 8px;
+  }
+
+  #locator-input {
+    font-size: 20px;
+    padding: 6px 10px;
+    width: 180px;
+  }
+
+  #locator-btn {
+    font-size: 20px;
+    padding: 6px 12px;
+  }
+
+  #gps-btn {
+    position: fixed;
+    top: calc(10px + 9vw + 160px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0077ff;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: none;
+    font-size: 20px;
+    z-index: 9999;
+  }
+
+  #map { width: 100%; height: 100vh; }
+
+  .leaflet-control-layers-expanded {
+    font-size: 20px;
+    padding: 10px;
+  }
+  .leaflet-control-layers-selector {
+    width: 24px;
+    height: 24px;
+  }
+</style>
+</head>
+
+<body>
+
+<div id="locator-panel">---</div>
+<div id="info-panel"></div>
+
+<div id="search-panel">
+  <input id="locator-input" type="text" placeholder="Zadej lokátor (např. JN79HQ)">
+  <button id="locator-btn">Najít</button>
+</div>
+
+<button id="gps-btn">Zpět na GPS</button>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+
+// ------------------------------
+// GPS → Maidenhead lokátor
+// ------------------------------
+function toMaiden(lat, lon) {
+  lon += 180;
+  lat += 90;
+
+  const A = 'A'.charCodeAt(0);
+
+  const fieldLon = Math.floor(lon / 20);
+  const fieldLat = Math.floor(lat / 10);
+
+  const squareLon = Math.floor((lon % 20) / 2);
+  const squareLat = Math.floor((lat % 10) / 1);
+
+  const subsLon = Math.floor(((lon % 2) / (2/24)));
+  const subsLat = Math.floor(((lat % 1) / (1/24)));
+
+  return String.fromCharCode(A + fieldLon)
+       + String.fromCharCode(A + fieldLat)
+       + squareLon + squareLat
+       + String.fromCharCode(A + subsLon)
+       + String.fromCharCode(A + subsLat);
+}
+
+// ------------------------------
+// Lokátor → bounding box
+// ------------------------------
+function locatorToBounds(locator) {
+  locator = locator.toUpperCase();
+  const A = 'A'.charCodeAt(0);
+
+  const fLon = locator.charCodeAt(0) - A;
+  const fLat = locator.charCodeAt(1) - A;
+
+  const sLon = parseInt(locator[2], 10);
+  const sLat = parseInt(locator[3], 10);
+
+  const ssLon = locator.charCodeAt(4) - A;
+  const ssLat = locator.charCodeAt(5) - A;
+
+  let lonMin = fLon * 20 - 180 + sLon * 2 + ssLon * (2/24);
+  let latMin = fLat * 10 - 90 + sLat * 1 + ssLat * (1/24);
+
+  let lonMax = lonMin + 2/24;
+  let latMax = latMin + 1/24;
+
+  return [[latMin, lonMin], [latMax, lonMax]];
+}
+
+// ------------------------------
+// Lokátor → střed
+// ------------------------------
+function locatorCenter(locator) {
+  locator = locator.toUpperCase();
+  const A = 'A'.charCodeAt(0);
+
+  const fLon = locator.charCodeAt(0) - A;
+  const fLat = locator.charCodeAt(1) - A;
+
+  const sLon = parseInt(locator[2], 10);
+  const sLat = parseInt(locator[3], 10);
+
+  const ssLon = locator.charCodeAt(4) - A;
+  const ssLat = locator.charCodeAt(5) - A;
+
+  let lon = fLon * 20 - 180 + sLon * 2 + ssLon * (2/24) + (2/24)/2;
+  let lat = fLat * 10 - 90 + sLat * 1 + ssLat * (1/24) + (1/24)/2;
+
+  return { lat, lon };
+}
+
+// ------------------------------
+// Výpočet vzdálenosti
+// ------------------------------
+function distanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI/180;
+  const dLon = (lon2 - lon1) * Math.PI/180;
+
+  const a =
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI/180) *
+    Math.cos(lat2 * Math.PI/180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// ------------------------------
+// Výpočet azimutu
+// ------------------------------
+function azimuth(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * Math.PI/180;
+  lat1 = lat1 * Math.PI/180;
+  lat2 = lat2 * Math.PI/180;
+
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1)*Math.sin(lat2) -
+            Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
+
+  let brng = Math.atan2(y, x) * 180/Math.PI;
+  return (brng + 360) % 360;
+}
+
+// ------------------------------
+// Info panel
+// ------------------------------
+function showInfo(distance, azim) {
+  document.getElementById("info-panel").textContent =
+    "Vzdálenost: " + distance.toFixed(1) + " km | Azimut: " + azim.toFixed(1) + "°";
+}
+
+// ------------------------------
+// Mapa
+// ------------------------------
+const map = L.map('map', {
+  maxZoom: 19,
+  minZoom: 2
+}).setView([49.5, 15.5], 7);
+
+// Základní vrstvy
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap'
+});
+
+const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  maxZoom: 17,
+  attribution: '© OpenTopoMap (CC-BY-SA)'
+});
+
+osm.addTo(map);
+
+// Přepínání vrstev
+L.control.layers(
+  { "OpenStreetMap": osm, "OpenTopoMap": topo },
+  {},
+  { collapsed: false }
+).addTo(map);
+
+// Vrstva pro rectangle
+let rectLayer = null;
+
+// ------------------------------
+// Vykreslení obdélníku
+// ------------------------------
+function drawLocatorRectangle(locator) {
+  const bounds = locatorToBounds(locator);
+
+  if (rectLayer) rectLayer.remove();
+
+  rectLayer = L.rectangle(bounds, {
+    color: '#ff0000',
+    weight: 2,
+    fillOpacity: 0.1
+  }).addTo(map);
+
+  map.fitBounds(bounds, { maxZoom: 15 });
+}
+
+// ------------------------------
+// Uložení do URL
+// ------------------------------
+function saveToURL(loc) {
+  const center = map.getCenter();
+  const zoom = map.getZoom();
+  const activeMap = map.hasLayer(osm) ? "osm" : "topo";
+
+  const params = new URLSearchParams();
+  params.set("loc", loc);
+  params.set("lat", center.lat.toFixed(6));
+  params.set("lon", center.lng.toFixed(6));
+  params.set("zoom", zoom);
+  params.set("map", activeMap);
+
+  history.replaceState(null, "", "?" + params.toString());
+}
+
+// ------------------------------
+// Načtení z URL
+// ------------------------------
+function loadFromURL() {
+  const p = new URLSearchParams(window.location.search);
+  const loc = p.get("loc");
+  const lat = parseFloat(p.get("lat"));
+  const lon = parseFloat(p.get("lon"));
+  const zoom = parseInt(p.get("zoom"));
+  const mapType = p.get("map");
+
+  if (mapType === "topo") topo.addTo(map);
+  else osm.addTo(map);
+
+  if (loc && /^[A-R]{2}[0-9]{2}[A-X]{2}$/i.test(loc)) {
+    document.getElementById("locator-panel").textContent = loc;
+    drawLocatorRectangle(loc);
+  }
+
+  if (!isNaN(lat) && !isNaN(lon) && !isNaN(zoom)) {
+    map.setView([lat, lon], zoom);
+  }
+}
+
+loadFromURL();
+
+// ------------------------------
+// GPS poloha – správné chování
+// ------------------------------
+const urlHasLocator = new URLSearchParams(window.location.search).has("loc");
+
+map.locate({ setView: !urlHasLocator, maxZoom: 15 });
+
+map.on('locationfound', e => {
+  window.gpsLat = e.latlng.lat;
+  window.gpsLon = e.latlng.lng;
+
+  // GPS marker se vykreslí vždy
+  L.circleMarker(e.latlng, {
+    radius: 8,
+    color: '#0077ff',
+    fillColor: '#3399ff',
+    fillOpacity: 0.9
+  }).addTo(map);
+
+  // Pokud URL obsahuje lokátor → GPS nepřepisuje mapu
+  if (urlHasLocator) return;
+
+  const loc = toMaiden(e.latlng.lat, e.latlng.lng);
+  document.getElementById("locator-panel").textContent = loc;
+
+  drawLocatorRectangle(loc);
+  saveToURL(loc);
+
+  document.getElementById("info-panel").textContent = "";
+});
+
+// ------------------------------
+// Kliknutí do mapy
+// ------------------------------
+map.on('click', e => {
+  const loc = toMaiden(e.latlng.lat, e.latlng.lng);
+  document.getElementById("locator-panel").textContent = loc;
+
+  drawLocatorRectangle(loc);
+  saveToURL(loc);
+
+  if (window.gpsLat && window.gpsLon) {
+    const c = locatorCenter(loc);
+    const d = distanceKm(window.gpsLat, window.gpsLon, c.lat, c.lon);
+    const a = azimuth(window.gpsLat, window.gpsLon, c.lat, c.lon);
+    showInfo(d, a);
+  }
+});
+
+// ------------------------------
+// Vyhledávání lokátoru
+// ------------------------------
+function isValidLocator(str) {
+  return /^[A-R]{2}[0-9]{2}[A-X]{2}$/i.test(str);
+}
+
+document.getElementById("locator-btn").onclick = () => {
+  const loc = document.getElementById("locator-input").value.trim().toUpperCase();
+
+  if (!isValidLocator(loc)) {
+    alert("Neplatný lokátor! Musí mít formát AA00AA.");
+    return;
+  }
+
+  document.getElementById("locator-panel").textContent = loc;
+  drawLocatorRectangle(loc);
+  saveToURL(loc);
+
+  if (window.gpsLat && window.gpsLon) {
+    const c = locatorCenter(loc);
+    const d = distanceKm(window.gpsLat, window.gpsLon, c.lat, c.lon);
+    const a = azimuth(window.gpsLat, window.gpsLon, c.lat, c.lon);
+    showInfo(d, a);
+  }
+};
+
+// ------------------------------
+// Tlačítko Zpět na GPS
+// ------------------------------
+document.getElementById("gps-btn").onclick = () => {
+  if (!window.gpsLat || !window.gpsLon) {
+    alert("GPS ještě není načtena.");
+    return;
+  }
+
+  const loc = toMaiden(window.gpsLat, window.gpsLon);
+  document.getElementById("locator-panel").textContent = loc;
+
+  drawLocatorRectangle(loc);
+  map.setView([window.gpsLat, window.gpsLon], 15);
+
+  saveToURL(loc);
+  document.getElementById("info-panel").textContent = "";
+};
+
+</script>
+</body>
+</html>
+

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <title>DX záznamník</title>
+    <link rel="stylesheet" href="main.css">
+</head>
+<body>
+
+<div class="container">
+    <header class="header">
+        <img src="icon-512.png" alt="DX" class="logo"><p>
+        <h1>DX záznamník</h1>
+    </header>
+
+    <button id="installBtn" style="
+      display:none;
+      padding: 14px 20px;
+      background:#1976d2;
+      color:white;
+      border:none;
+      border-radius:10px;
+      font-size:20px;
+      font-weight:bold;
+      margin:15px 0;
+      width:100%;
+    ">
+    📲 Nainstalovat aplikaci
+    </button>
+
+
+    <nav class="menu">
+    <!-- Toto je komentář -->
+        <a href="qth.html" class="menu-btn">Vyhledání QTH</a>
+        <a href="nove_spojeni.html" class="menu-btn">Nové spojení</a>
+        <a href="seznam_spojeni.html" class="menu-btn">Seznam spojení</a>  
+        <a href="nove_misto.html" class="menu-btn">Nové místo</a>
+        <a href="mista_seznam.html" class="menu-btn">Seznam míst</a>
+        <a href="lok_mapa.html" class="menu-btn">Lokátorová mapa</a>
+        <a href="https://www.dxinfocentre.com/tropo_eur.html" class="menu-btn">Tropo mapa</a>
+        <a href="https://meteo.rlp.cz/test/wxpic/czrad/animace.gif" class="menu-btn">Meteo radar</a>
+       <!-- <a href="oaplikaci.html" class="menu-btn">O aplikaci</a> -->
+    </nav>
+</div>
+
+
+<script>
+let deferredPrompt = null;
+const installBtn = document.getElementById("installBtn");
+
+// Zachytíme událost, která říká, že PWA lze nainstalovat
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();          // zabrání automatickému zobrazení
+  deferredPrompt = e;          // uložíme si událost
+  installBtn.style.display = "block";   // zobrazíme tlačítko
+});
+
+// Po kliknutí na tlačítko spustíme instalaci
+installBtn.addEventListener("click", async () => {
+  if (!deferredPrompt) return;
+
+  deferredPrompt.prompt();     // zobrazí systémové okno instalace
+
+  const result = await deferredPrompt.userChoice;
+
+  // Po instalaci tlačítko schováme
+  if (result.outcome === "accepted") {
+    installBtn.style.display = "none";
+  }
+
+  deferredPrompt = null;
+});
+</script>
+
+
+</body>
+</html>
+
