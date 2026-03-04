@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Navigace</title>
+<style>
+  body { font-family: sans-serif; text-align: center; padding: 20px; }
+  #distance { font-size: 64px; font-weight: bold; margin: 20px 0; }
+  #arrow { width: 160px; height: 160px; transition: transform 0.15s linear; }
+  #info { font-size: 18px; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h2>Navigace na bod</h2>
+
+<div id="distance">—</div>
+
+<img id="arrow" src="arrow.svg">
+
+<div id="info">
+  <div>Cíl: <span id="target"></span></div>
+  <div>Moje pozice: <span id="current"></span></div>
+</div>
+
+<script defer>
+const p = new URLSearchParams(location.search);
+const targetLat = parseFloat(p.get("lat"));
+const targetLon = parseFloat(p.get("lon"));
+
+document.getElementById("target").textContent =
+  `${targetLat.toFixed(5)}, ${targetLon.toFixed(5)}`;
+
+let bearing = null;
+let heading = null;
+
+function updateDistance(lat, lon) {
+  const R = 6371e3;
+  const φ1 = lat * Math.PI/180;
+  const φ2 = targetLat * Math.PI/180;
+  const Δφ = (targetLat - lat) * Math.PI/180;
+  const Δλ = (targetLon - lon) * Math.PI/180;
+
+  const a = Math.sin(Δφ/2)**2 +
+            Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+
+  const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  document.getElementById("distance").textContent = Math.round(d) + " m";
+}
+
+function updateBearing(lat, lon) {
+  const φ1 = lat * Math.PI/180;
+  const φ2 = targetLat * Math.PI/180;
+  const λ1 = lon * Math.PI/180;
+  const λ2 = targetLon * Math.PI/180;
+
+  const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+  const x = Math.cos(φ1)*Math.sin(φ2) -
+            Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2 - λ1);
+
+  bearing = (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
+  updateArrow();
+}
+
+function updateArrow() {
+  if (bearing == null || heading == null) return;
+  const rot = (bearing - heading + 360) % 360;
+  document.getElementById("arrow").style.transform = `rotate(${rot}deg)`;
+}
+
+navigator.geolocation.watchPosition(pos => {
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+
+  document.getElementById("current").textContent =
+    `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+
+  updateDistance(lat, lon);
+  updateBearing(lat, lon);
+});
+
+// Android kompas
+window.addEventListener("deviceorientationabsolute", e => {
+  if (e.alpha !== null) {
+    heading = e.alpha;
+    updateArrow();
+  }
+});
+
+// iOS kompas
+if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) {
+  DeviceOrientationEvent.requestPermission().then(state => {
+    if (state === "granted") {
+      window.addEventListener("deviceorientation", e => {
+        if (e.webkitCompassHeading !== undefined) {
+          heading = 360 - e.webkitCompassHeading;
+          updateArrow();
+        }
+      });
+    }
+  });
+}
+</script>
+
+</body>
+</html>
+
