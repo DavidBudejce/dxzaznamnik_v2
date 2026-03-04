@@ -14,6 +14,19 @@
 
 <h2>Navigace na bod</h2>
 
+<a href="nove_misto.html"
+   style="display:inline-block;
+          padding:20px 30px;
+          background:#444;
+          color:white;
+          border-radius:8px;
+          text-decoration:none;
+          font-size:40px;
+          margin-bottom:20px;">
+  ⬅️ Zpět
+</a>
+
+
 <div id="distance">—</div>
 
 <img id="arrow" src="arrow.svg">
@@ -62,11 +75,37 @@ function updateBearing(lat, lon) {
   updateArrow();
 }
 
+let gpsHeading = null;
+
+navigator.geolocation.watchPosition(pos => {
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+
+    if (pos.coords.speed > 1.5 && pos.coords.heading !== null) {
+        gpsHeading = pos.coords.heading; // 0–360°
+    }
+
+    updateDistance(lat, lon);
+    updateBearing(lat, lon);
+    updateArrow();
+});
+
+
 function updateArrow() {
-  if (bearing == null || heading == null) return;
-  const rot = (bearing - heading + 360) % 360;
-  document.getElementById("arrow").style.transform = `rotate(${rot}deg)`;
+    if (bearing == null) return;
+
+    let usedHeading = heading; // kompas
+
+    if (gpsHeading !== null) {
+        usedHeading = gpsHeading; // GPS směr pohybu
+    }
+
+    if (usedHeading == null) return;
+
+    const rot = (bearing - usedHeading + 360) % 360;
+    document.getElementById("arrow").style.transform = `rotate(${rot}deg)`;
 }
+
 
 navigator.geolocation.watchPosition(pos => {
   const lat = pos.coords.latitude;
