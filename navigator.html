@@ -3,31 +3,58 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Navigace</title>
+
 <style>
-  body { font-family: sans-serif; text-align: center; padding: 20px; }
-  #distance { font-size: 64px; font-weight: bold; margin: 20px 0; }
-  #arrow { width: 160px; height: 160px; transition: transform 0.15s linear; }
-  #info { font-size: 18px; margin-top: 20px; }
+  body {
+    font-family: sans-serif;
+    text-align: center;
+    padding: 20px;
+  }
+
+  #backbtn {
+    display: block;
+    padding: 20px 30px;
+    background: #444;
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 40px;
+    margin-bottom: 30px;
+  }
+
+  #distance {
+    font-size: 64px;
+    font-weight: bold;
+    margin: 20px 0;
+  }
+
+  #accuracy {
+    font-size: 28px;
+    color: #555;
+    margin-bottom: 20px;
+  }
+
+  #arrow {
+    width: 160px;
+    height: 160px;
+    transition: transform 0.15s linear;
+    margin-top: 20px;
+  }
+
+  #info {
+    font-size: 22px;
+    margin-top: 30px;
+  }
 </style>
 </head>
 <body>
 
+<a id="backbtn" href="nove_misto.html">⬅️ Zpět</a>
+
 <h2>Navigace na bod</h2>
 
-<a href="nove_misto.html"
-   style="display:inline-block;
-          padding:20px 30px;
-          background:#444;
-          color:white;
-          border-radius:8px;
-          text-decoration:none;
-          font-size:40px;
-          margin-bottom:20px;">
-  ⬅️ Zpět
-</a>
-
-
 <div id="distance">—</div>
+<div id="accuracy">Přesnost: —</div>
 
 <img id="arrow" src="arrow.svg">
 
@@ -36,7 +63,7 @@
   <div>Moje pozice: <span id="current"></span></div>
 </div>
 
-<script defer>
+<script>
 const p = new URLSearchParams(location.search);
 const targetLat = parseFloat(p.get("lat"));
 const targetLon = parseFloat(p.get("lon"));
@@ -47,6 +74,7 @@ document.getElementById("target").textContent =
 let bearing = null;
 let heading = null;
 
+// Výpočet vzdálenosti
 function updateDistance(lat, lon) {
   const R = 6371e3;
   const φ1 = lat * Math.PI/180;
@@ -61,6 +89,7 @@ function updateDistance(lat, lon) {
   document.getElementById("distance").textContent = Math.round(d) + " m";
 }
 
+// Bearing k cíli
 function updateBearing(lat, lon) {
   const φ1 = lat * Math.PI/180;
   const φ2 = targetLat * Math.PI/180;
@@ -75,58 +104,41 @@ function updateBearing(lat, lon) {
   updateArrow();
 }
 
-let gpsHeading = null;
-
-navigator.geolocation.watchPosition(pos => {
-    const lat = pos.coords.latitude;
-    const lon = pos.coords.longitude;
-
-    if (pos.coords.speed > 1.5 && pos.coords.heading !== null) {
-        gpsHeading = pos.coords.heading; // 0–360°
-    }
-
-    updateDistance(lat, lon);
-    updateBearing(lat, lon);
-    updateArrow();
-});
-
-
+// Otáčení šipky
 function updateArrow() {
-    if (bearing == null) return;
-
-    let usedHeading = heading; // kompas
-
-    if (gpsHeading !== null) {
-        usedHeading = gpsHeading; // GPS směr pohybu
-    }
-
-    if (usedHeading == null) return;
-
-    const rot = (bearing - usedHeading + 360) % 360;
-    document.getElementById("arrow").style.transform = `rotate(${rot}deg)`;
+  if (bearing == null || heading == null) return;
+  const rot = (bearing - heading + 360) % 360;
+  document.getElementById("arrow").style.transform = `rotate(${rot}deg)`;
 }
 
-
+// GPS
 navigator.geolocation.watchPosition(pos => {
   const lat = pos.coords.latitude;
   const lon = pos.coords.longitude;
+  const acc = pos.coords.accuracy;
 
   document.getElementById("current").textContent =
     `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+
+  document.getElementById("accuracy").textContent =
+    `Přesnost: ${Math.round(acc)} m`;
 
   updateDistance(lat, lon);
   updateBearing(lat, lon);
 });
 
-// Android kompas
-window.addEventListener("deviceorientationabsolute", e => {
-  if (e.alpha !== null) {
-    heading = e.alpha;
-    updateArrow();
-  }
+// Stabilní kompas pro Android
+window.addEventListener("deviceorientation", e => {
+  if (e.alpha == null) return;
+
+  let alpha = e.alpha;
+  const orientation = screen.orientation?.angle || 0;
+
+  heading = (alpha + orientation) % 360;
+  updateArrow();
 });
 
-// iOS kompas
+// iOS fallback
 if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) {
   DeviceOrientationEvent.requestPermission().then(state => {
     if (state === "granted") {
