@@ -73,6 +73,7 @@ document.getElementById("target").textContent =
 
 let bearing = null;
 let heading = null;
+let lastHeading = null;
 
 // Výpočet vzdálenosti
 function updateDistance(lat, lon) {
@@ -131,14 +132,33 @@ navigator.geolocation.watchPosition(pos => {
 window.addEventListener("deviceorientation", e => {
   if (e.alpha == null) return;
 
-  let alpha = e.alpha;
-  const orientation = screen.orientation?.angle || 0;
+  let h = null;
 
-  heading = (alpha + orientation) % 360;
+  // 1) Android absolute heading
+  if (e.absolute === true && e.alpha != null) {
+    h = (360 - e.alpha) % 360;
+  }
+
+  // 2) iOS
+  else if (e.webkitCompassHeading != null) {
+    h = e.webkitCompassHeading;
+  }
+
+  // 3) fallback – relativní rotace + orientace displeje
+  else {
+    const orientation = screen.orientation?.angle || 0;
+    h = (e.alpha + orientation) % 360;
+  }
+
+  // Vyhlazení (odstraní cukání)
+  if (lastHeading == null) lastHeading = h;
+  heading = lastHeading * 0.7 + h * 0.3;
+  lastHeading = heading;
+
   updateArrow();
 });
 
-// iOS fallback
+// iOS explicitní povolení
 if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) {
   DeviceOrientationEvent.requestPermission().then(state => {
     if (state === "granted") {
